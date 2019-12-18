@@ -299,7 +299,11 @@ def process_range_question_type(row):
 
 
 def workbook_to_json(
-    workbook_dict, form_name=None, default_language="default", warnings=None
+    workbook_dict,
+    form_name=None,
+    fallback_form_name=None,
+    default_language="default",
+    warnings=None,
 ):
     """
     workbook_dict -- nested dictionaries representing a spreadsheet.
@@ -388,7 +392,7 @@ def workbook_to_json(
         )
 
     # Here we create our json dict root with default settings:
-    id_string = settings.get(constants.ID_STRING, form_name)
+    id_string = settings.get(constants.ID_STRING, fallback_form_name)
     sms_keyword = settings.get(constants.SMS_KEYWORD, id_string)
     json_dict = {
         constants.TYPE: constants.SURVEY,
@@ -652,6 +656,8 @@ def workbook_to_json(
                     constants.LOCATION_MIN_INTERVAL,
                     constants.LOCATION_MAX_AGE,
                     constants.TRACK_CHANGES,
+                    constants.IDENTIFY_USER,
+                    constants.TRACK_CHANGES_REASONS,
                 ],
             )
 
@@ -671,6 +677,37 @@ def workbook_to_json(
                             "odk:"
                             + constants.TRACK_CHANGES: parameters[
                                 constants.TRACK_CHANGES
+                            ]
+                        }
+                    )
+
+            if constants.TRACK_CHANGES_REASONS in parameters.keys():
+                if parameters[constants.TRACK_CHANGES_REASONS] != "on-form-edit":
+                    raise PyXFormError(
+                        constants.TRACK_CHANGES_REASONS + " must be set to on-form-edit"
+                    )
+                else:
+                    new_dict["bind"] = new_dict.get("bind", {})
+                    new_dict["bind"].update(
+                        {"odk:" + constants.TRACK_CHANGES_REASONS: "on-form-edit"}
+                    )
+
+            if constants.IDENTIFY_USER in parameters.keys():
+                if (
+                    parameters[constants.IDENTIFY_USER] != "true"
+                    and parameters[constants.IDENTIFY_USER] != "false"
+                ):
+                    raise PyXFormError(
+                        constants.IDENTIFY_USER + " must be set to true or false: "
+                        "'%s' is an invalid value" % parameters[constants.IDENTIFY_USER]
+                    )
+                else:
+                    new_dict["bind"] = new_dict.get("bind", {})
+                    new_dict["bind"].update(
+                        {
+                            "odk:"
+                            + constants.IDENTIFY_USER: parameters[
+                                constants.IDENTIFY_USER
                             ]
                         }
                     )
@@ -1316,7 +1353,10 @@ def parse_file_to_json(
     if warnings is None:
         warnings = []
     workbook_dict = parse_file_to_workbook_dict(path, file_object)
-    return workbook_to_json(workbook_dict, default_name, default_language, warnings)
+    fallback_form_name = unicode(get_filename(path))
+    return workbook_to_json(
+        workbook_dict, default_name, fallback_form_name, default_language, warnings
+    )
 
 
 def organize_by_values(dict_list, key):
